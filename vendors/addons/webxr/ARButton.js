@@ -94,11 +94,20 @@ class ARButton {
 
 			};
 
+			const safeSessionInit = Object.assign({}, sessionInit);
+			if ( safeSessionInit.optionalFeatures ) {
+				safeSessionInit.optionalFeatures = safeSessionInit.optionalFeatures.filter( f => f !== 'dom-overlay' );
+			}
+			delete safeSessionInit.domOverlay;
+
 			button.onclick = function () {
 
 				if ( currentSession === null ) {
 
-					navigator.xr.requestSession( 'immersive-ar', sessionInit ).then( onSessionStarted );
+					navigator.xr.requestSession( 'immersive-ar', safeSessionInit ).then( onSessionStarted ).catch( err => {
+						console.error('AR Session Error:', err);
+						alert('AR Error: ' + err.message);
+					});
 
 				} else {
 
@@ -106,7 +115,7 @@ class ARButton {
 
 					if ( navigator.xr.offerSession !== undefined ) {
 
-						navigator.xr.offerSession( 'immersive-ar', sessionInit )
+						navigator.xr.offerSession( 'immersive-ar', safeSessionInit )
 							.then( onSessionStarted );
 
 					}
@@ -117,7 +126,7 @@ class ARButton {
 
 			if ( navigator.xr.offerSession !== undefined ) {
 
-				navigator.xr.offerSession( 'immersive-ar', sessionInit )
+				navigator.xr.offerSession( 'immersive-ar', safeSessionInit )
 					.then( onSessionStarted );
 
 			}
