@@ -4,6 +4,7 @@ import { GUI } from 'three/addons/libs/lil-gui.module.min.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { SUBTRACTION, ADDITION, Brush, Evaluator } from 'three-bvh-csg';
 import { STLExporter } from 'three/addons/exporters/STLExporter.js';
+import { ARButton } from 'three/addons/webxr/ARButton.js';
 
 // --- Scene Setup ---
 const scene = new THREE.Scene();
@@ -15,7 +16,11 @@ camera.position.set(400, 300, 600);
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.xr.enabled = true; // Enabled WebXR for AR
 document.body.appendChild(renderer.domElement);
+
+// Create AR Button
+document.body.appendChild(ARButton.createButton(renderer));
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
@@ -746,17 +751,28 @@ controls.target.set(0, centerY, 0);
 camera.position.set(500, centerY + 200, 700); // Back up a bit for larger object
 controls.update();
 
+// --- WebXR AR Events ---
+// When entering AR, we must scale the millimeters down to meters so it renders at life-size
+renderer.xr.addEventListener('sessionstart', () => {
+    modelGroup.scale.set(0.001, 0.001, 0.001);
+    modelGroup.position.set(0, -0.2, -0.6); // Position slightly down and forward
+});
+
+renderer.xr.addEventListener('sessionend', () => {
+    // Revert scale to 1 for correct STL generation and desktop preview
+    modelGroup.scale.set(1, 1, 1);
+    modelGroup.position.set(0, 0, 0);
+});
+
 // --- Loop ---
-function animate() {
-    requestAnimationFrame(animate);
+renderer.setAnimationLoop(() => {
     controls.update();
     renderer.render(scene, camera);
-}
+});
+
 // Resize
 window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
 });
-
-animate();
