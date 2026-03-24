@@ -1,0 +1,188 @@
+
+import {
+    Vector3
+} from 'three';
+
+/**
+ * Usage:
+ *  const exporter = new STLExporter();
+ *
+ *  // second argument is a list of options
+ *  const data = exporter.parse( mesh, { binary: true } );
+ *
+ */
+
+class STLExporter {
+
+    parse(scene, options = {}) {
+
+        const binary = options.binary !== undefined ? options.binary : false;
+
+        //
+
+        const vector = new Vector3();
+        const normalMatrixWorld = new Vector3();
+
+        const objects = [];
+        let triangles = 0;
+
+        scene.traverse(function (object) {
+
+            if (object.isMesh && object.geometry.isBufferGeometry) {
+
+                const geometry = object.geometry;
+                const index = geometry.index;
+                const positionAttribute = geometry.getAttribute('position');
+
+                triangles += (index !== null) ? (index.count / 3) : (positionAttribute.count / 3);
+
+                objects.push({
+                    object3d: object,
+                    geometry: geometry
+                });
+
+            }
+
+        });
+
+        let output;
+        let offset = 80; // skip header
+
+        if (binary === true) {
+
+            const bufferLength = triangles * 2 + triangles * 3 * 4 * 4 + 80 + 4;
+            const arrayBuffer = new ArrayBuffer(bufferLength);
+            output = new DataView(arrayBuffer);
+            output.setUint32(offset, triangles, true); offset += 4;
+
+        } else {
+
+            output = '';
+            output += 'solid exported\n';
+
+        }
+
+        const vA = new Vector3();
+        const vB = new Vector3();
+        const vC = new Vector3();
+        const cb = new Vector3();
+        const ab = new Vector3();
+        const normal = new Vector3();
+
+        for (let i = 0, il = objects.length; i < il; i++) {
+
+            const object = objects[i].object3d;
+            const geometry = objects[i].geometry;
+
+            const index = geometry.index;
+            const positionAttribute = geometry.getAttribute('position');
+
+            if (index !== null) {
+
+                // indexed geometry
+
+                for (let j = 0; j < index.count; j += 3) {
+
+                    const a = index.getX(j + 0);
+                    const b = index.getX(j + 1);
+                    const c = index.getX(j + 2);
+
+                    writeFace(a, b, c, positionAttribute, object);
+
+                }
+
+            } else {
+
+                // non-indexed geometry
+
+                for (let j = 0; j < positionAttribute.count; j += 3) {
+
+                    const a = j + 0;
+                    const b = j + 1;
+                    const c = j + 2;
+
+                    writeFace(a, b, c, positionAttribute, object);
+
+                }
+
+            }
+
+        }
+
+        if (binary === false) {
+
+            output += 'endsolid exported\n';
+
+        }
+
+        return output;
+
+        function writeFace(a, b, c, positionAttribute, object) {
+
+            vA.fromBufferAttribute(positionAttribute, a);
+            vB.fromBufferAttribute(positionAttribute, b);
+            vC.fromBufferAttribute(positionAttribute, c);
+
+            if (object.isSkinnedMesh === true) {
+
+                object.applyBoneTransform(a, vA);
+                object.applyBoneTransform(b, vB);
+                object.applyBoneTransform(c, vC);
+
+            }
+
+            vA.applyMatrix4(object.matrixWorld);
+            vB.applyMatrix4(object.matrixWorld);
+            vC.applyMatrix4(object.matrixWorld);
+
+            writeNormal(vA, vB, vC);
+
+            if (binary === true) {
+
+                output.setFloat32(offset, normal.x, true); offset += 4;
+                output.setFloat32(offset, normal.y, true); offset += 4;
+                output.setFloat32(offset, normal.z, true); offset += 4;
+
+                output.setFloat32(offset, vA.x, true); offset += 4;
+                output.setFloat32(offset, vA.y, true); offset += 4;
+                output.setFloat32(offset, vA.z, true); offset += 4;
+
+                output.setFloat32(offset, vB.x, true); offset += 4;
+                output.setFloat32(offset, vB.y, true); offset += 4;
+                output.setFloat32(offset, vB.z, true); offset += 4;
+
+                output.setFloat32(offset, vC.x, true); offset += 4;
+                output.setFloat32(offset, vC.y, true); offset += 4;
+                output.setFloat32(offset, vC.z, true); offset += 4;
+
+                output.setUint16(offset, 0, true); offset += 2;
+
+            } else {
+
+                output += '\tfacet normal ' + normal.x + ' ' + normal.y + ' ' + normal.z + '\n';
+                output += '\t\touter loop\n';
+                output += '\t\t\tvertex ' + vA.x + ' ' + vA.y + ' ' + vA.z + '\n';
+                output += '\t\t\tvertex ' + vB.x + ' ' + vB.y + ' ' + vB.z + '\n';
+                output += '\t\t\tvertex ' + vC.x + ' ' + vC.y + ' ' + vC.z + '\n';
+                output += '\t\tendloop\n';
+                output += '\tendfacet\n';
+
+            }
+
+        }
+
+        function writeNormal(vA, vB, vC) {
+
+            cb.subVectors(vC, vB);
+            ab.subVectors(vA, vB);
+            cb.cross(ab).normalize();
+
+            normal.copy(cb).normalize();
+
+        }
+
+    }
+
+}
+
+export { STLExporter };
