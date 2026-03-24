@@ -4,7 +4,7 @@ import { GUI } from 'three/addons/libs/lil-gui.module.min.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { SUBTRACTION, ADDITION, Brush, Evaluator } from 'three-bvh-csg';
 import { STLExporter } from 'three/addons/exporters/STLExporter.js';
-import { ARButton } from 'three/addons/webxr/ARButton.js';
+import { ARButton } from 'three/addons/webxr/ARButton.js?v=2';
 
 // --- Scene Setup ---
 const scene = new THREE.Scene();
@@ -750,6 +750,23 @@ const centerY = (params.elevation + params.baseElevation) / 2;
 controls.target.set(0, centerY, 0);
 camera.position.set(500, centerY + 200, 700); // Back up a bit for larger object
 controls.update();
+
+// --- Generación Automática de QR para visualizar en Móvil ---
+const qrContainer = document.getElementById('qr-container');
+const qrImg = document.getElementById('qr-code');
+if (qrImg && qrContainer) {
+    const currentUrl = encodeURIComponent(window.location.href);
+    qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${currentUrl}`;
+
+    // Si el dispositivo nativamente soporta AR (ej. en móvil), escondemos el código QR
+    if ('xr' in navigator) {
+        navigator.xr.isSessionSupported('immersive-ar').then((supported) => {
+            if (supported) {
+                qrContainer.style.display = 'none';
+            }
+        });
+    }
+}
 
 // --- WebXR AR Events ---
 // When entering AR, we must scale the millimeters down to meters so it renders at life-size
