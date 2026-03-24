@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grasshopper to Web</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #1a1a1a;
+            font-family: sans-serif;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 5px;
+            pointer-events: none;
+        }
+    </style>
+    <!-- Import Map for Three.js (Local) -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "./vendors/three.module.js",
+                "three/addons/": "./vendors/addons/",
+                "three/addons/exporters/STLExporter.js": "./vendors/addons/exporters/STLExporter.js",
+                "three-mesh-bvh": "./vendors/three-mesh-bvh.module.js",
+                "three-bvh-csg": "./vendors/three-bvh-csg.module.js"
+            }
+        }
+    </script>
+</head>
+
+<body>
+    <div id="info">
+        <strong style="font-size: 1.2em;">Protomesa 03</strong><br>
+        by: wekaná studio.<br>
+        <span style="font-size: 0.85em;">Jesús García<br>MX 2026</span>
+    </div>
+
+    <!-- Contenedor del código QR -->
+    <div id="qr-container" style="position: absolute; bottom: 20px; left: 20px; background: rgba(0,0,0,0.5); padding: 10px; border-radius: 8px; text-align: center; color: white; display: flex; flex-direction: column; align-items: center; gap: 5px; pointer-events: none; z-index: 1000;">
+        <span style="font-size: 12px; font-weight: bold;">Escanear para probar AR</span>
+        <img id="qr-code" src="" width="100" height="100" alt="Código QR para AR" style="background: white; padding: 5px; border-radius: 4px;" />
+    </div>
+    <script>
+        window.onerror = function (message, source, lineno, colno, error) {
+            const info = document.getElementById('info');
+            info.innerHTML += `<br><span style="color:red; background: black;">Error: ${message}</span>`;
+            console.error(message, error);
+        };
+        window.addEventListener('unhandledrejection', function (event) {
+            const info = document.getElementById('info');
+            info.innerHTML += `<br><span style="color:red; background: black;">Promise Error: ${event.reason}</span>`;
+            console.error(event.reason);
+        });
+    </script>
+    <script type="module" src="./script.js"></script>
+</body>
+
+</html>
