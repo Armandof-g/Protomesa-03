@@ -4,7 +4,7 @@ import { GUI } from 'three/addons/libs/lil-gui.module.min.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { SUBTRACTION, ADDITION, Brush, Evaluator } from 'three-bvh-csg';
 import { STLExporter } from 'three/addons/exporters/STLExporter.js';
-import { ARButton } from 'three/addons/webxr/ARButton.js?v=6';
+import { ARButton } from 'three/addons/webxr/ARButton.js?v=7';
 
 // --- Scene Setup ---
 const scene = new THREE.Scene();
@@ -20,7 +20,7 @@ renderer.xr.enabled = true; // Enabled WebXR for AR
 document.body.appendChild(renderer.domElement);
 
 // Create AR Button
-document.body.appendChild(ARButton.createButton(renderer));
+document.body.appendChild(ARButton.createButton(renderer, { requiredFeatures: ['hit-test'] }));
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
@@ -768,22 +768,94 @@ if (qrImg && qrContainer) {
     }
 }
 
+// --- WebXR AR Placement & Hit-Testing Setup ---
+let hitTestSource = null;
+let hitTestSourceRequested = false;
+let isModelPlaced = false;
+let isDragging = false;
+
+// Create AR placement reticle (indicator ring)
+const reticleGeometry = new THREE.RingGeometry(0.1, 0.13, 32).rotateX(-Math.PI / 2);
+const reticleMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00, side: THREE.DoubleSide });
+const reticle = new THREE.Mesh(reticleGeometry, reticleMaterial);
+reticle.matrixAutoUpdate = false;
+reticle.visible = false;
+scene.add(reticle);
+
+// Touch Controller setup to enable dragging
+const controller = renderer.xr.getController(0);
+controller.addEventListener('selectstart', () => {
+    isDragging = true;
+    if (reticle.visible) {
+        modelGroup.position.setFromMatrixPosition(reticle.matrix);
+    }
+});
+controller.addEventListener('selectend', () => {
+    isDragging = false;
+});
+scene.add(controller);
+
 // --- WebXR AR Events ---
-// When entering AR, we must scale the millimeters down to meters so it renders at life-size
 renderer.xr.addEventListener('sessionstart', () => {
     modelGroup.scale.set(0.001, 0.001, 0.001);
-    modelGroup.position.set(0, -0.2, -0.6); // Position slightly down and forward
+    modelGroup.visible = false; // Hide until floor is detected
+    isModelPlaced = false;
 });
 
 renderer.xr.addEventListener('sessionend', () => {
     // Revert scale to 1 for correct STL generation and desktop preview
     modelGroup.scale.set(1, 1, 1);
     modelGroup.position.set(0, 0, 0);
+    modelGroup.visible = true;
+    reticle.visible = false;
 });
 
 // --- Loop ---
-renderer.setAnimationLoop(() => {
+renderer.setAnimationLoop((timestamp, frame) => {
     controls.update();
+
+    if (renderer.xr.isPresenting) {
+        if (frame) {
+            const referenceSpace = renderer.xr.getReferenceSpace();
+            const session = renderer.xr.getSession();
+
+            if (hitTestSourceRequested === false) {
+                session.requestReferenceSpace('viewer').then((referenceSpace) => {
+                    session.requestHitTestSource({ space: referenceSpace }).then((source) => {
+                        hitTestSource = source;
+                    });
+                });
+
+                session.addEventListener('end', () => {
+                    hitTestSourceRequested = false;
+                    hitTestSource = null;
+                });
+
+                hitTestSourceRequested = true;
+            }
+
+            if (hitTestSource) {
+                const hitTestResults = frame.getHitTestResults(hitTestSource);
+                if (hitTestResults.length > 0) {
+                    const hit = hitTestResults[0];
+                    const pose = hit.getPose(referenceSpace);
+
+                    reticle.visible = true;
+                    reticle.matrix.fromArray(pose.transform.matrix);
+
+                    // Place model on the floor automatically or follow finger drag
+                    if (!isModelPlaced || isDragging) {
+                        modelGroup.position.setFromMatrixPosition(reticle.matrix);
+                        modelGroup.visible = true;
+                        isModelPlaced = true;
+                    }
+                } else {
+                    reticle.visible = false;
+                }
+            }
+        }
+    }
+
     renderer.render(scene, camera);
 });
 
