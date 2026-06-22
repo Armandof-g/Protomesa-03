@@ -98,14 +98,24 @@ class ARButton {
 
 				if ( currentSession === null ) {
 
-					navigator.xr.requestSession( 'immersive-ar', sessionInit ).then( onSessionStarted ).catch( err => {
-						console.error('AR Session Error:', err);
-						if (window.showARErrorModal) {
-							window.showARErrorModal(err.message);
-						} else {
-							alert('AR Error: ' + err.message);
-						}
-					});
+					// Intentar iniciar con la configuración completa (incluyendo dom-overlay)
+					navigator.xr.requestSession( 'immersive-ar', sessionInit )
+						.then( onSessionStarted )
+						.catch( err => {
+							console.warn('Fallo al iniciar AR con configuración completa, intentando sin opciones...', err);
+							
+							// Fallback: intentar iniciar AR básico sin opciones
+							navigator.xr.requestSession( 'immersive-ar' )
+								.then( onSessionStarted )
+								.catch( errFallback => {
+									console.error('AR Session Error final:', errFallback);
+									if (window.showARErrorModal) {
+										window.showARErrorModal(errFallback.message);
+									} else {
+										alert('AR Error: ' + errFallback.message);
+									}
+								});
+						});
 
 				} else {
 
