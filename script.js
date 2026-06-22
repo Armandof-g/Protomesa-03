@@ -4,7 +4,7 @@ import { GUI } from 'three/addons/libs/lil-gui.module.min.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { SUBTRACTION, ADDITION, Brush, Evaluator } from 'three-bvh-csg';
 import { STLExporter } from 'three/addons/exporters/STLExporter.js';
-import { ARButton } from 'three/addons/webxr/ARButton.js?v=7';
+import { ARButton } from 'three/addons/webxr/ARButton.js?v=15';
 
 // --- Scene Setup ---
 const scene = new THREE.Scene();
@@ -361,44 +361,53 @@ function createSolidMesh(outerTop, innerTop, outerBase, innerBase, color) {
     return new THREE.Mesh(geometry, material);
 }
 
-// Helper: Create Thread Spiral Mesh
-const createSolidThreadSpiral = (radius, isInward, color) => {
+// Helper: Create Watertight Thread Spiral Mesh (with Y-extension support)
+const createSolidThreadSpiral = (radius, turns, height, baseWidth, topWidth, depth, startAngle, extraPct, isInward, color) => {
     const tVertices = [];
     const tIndices = [];
 
-    const tHeight = params.threadLength;
-    const tTurns = 2;
     const segmentsPerTurn = 120;
-    const totalSegments = segmentsPerTurn * tTurns;
-    const taperLen = segmentsPerTurn * 0.5;
+    const baseSegments = Math.round(segmentsPerTurn * turns);
+    const totalSegments = Math.round(baseSegments * (1 + extraPct));
+    
+    // Taper only at the bottom end if extending upwards (extraPct > 0)
+    const taperStart = (extraPct > 0) ? 0 : Math.min(totalSegments / 2, 10);
+    const taperEnd = Math.min(totalSegments / 2, 10);
 
-    const tPitch = tHeight / tTurns;
-    const tBaseWidth = tPitch * 0.5;
-    const tTopWidth = tPitch * 0.2;
-    const tDepth = (tBaseWidth - tTopWidth) / 2;
-
-    const halfBase = tBaseWidth / 2;
-    const halfTop = tTopWidth / 2;
+    const halfBase = baseWidth / 2;
+    const halfTop = topWidth / 2;
 
     const startY = -halfBase;
-    const endY = -tHeight + halfBase;
+    const endY = -height + halfBase;
+    const yRange = endY - startY;
 
     for (let i = 0; i <= totalSegments; i++) {
-        const pct = i / totalSegments;
-        const angle = pct * tTurns * 2 * Math.PI;
-
-        const yCenter = startY + pct * (endY - startY);
+        // pct goes from -extraPct to 1.0 to extend the thread upwards
+        const pct = -extraPct + (i / totalSegments) * (1 + extraPct);
+        const angle = startAngle + pct * turns * 2 * Math.PI;
+        const yCenter = startY + pct * yRange;
 
         let depthScale = 1.0;
-        if (i < taperLen) {
-            const t = i / taperLen;
+        if (pct < 0) {
+            depthScale = 1.0; // Maintain full depth above joint plane for clean entry mouth
+        } else if (i < taperStart) {
+            const t = i / taperStart;
             depthScale = t * t * (3 - 2 * t);
-        } else if (i > totalSegments - taperLen) {
-            const t = (totalSegments - i) / taperLen;
+        } else if (totalSegments - i < taperEnd) {
+            const t = (totalSegments - i) / taperEnd;
             depthScale = t * t * (3 - 2 * t);
         }
 
-        const currentDepth = tDepth * depthScale;
+        // Apply a radial/vertical flare at the thread entry mouth for the base cutter to act as an entry funnel
+        let scale = 1.0;
+        if (extraPct > 0 && pct < 0.1) {
+            const t_flare = (0.1 - pct) / (0.1 + extraPct);
+            scale = 1.0 + t_flare * 0.6; // Scale up to 1.6x at the top entry mouth
+        }
+
+        const currentHalfBase = halfBase * scale;
+        const currentHalfTop = halfTop * scale;
+        const currentDepth = depth * depthScale * scale;
 
         const cos = Math.cos(angle);
         const sin = Math.sin(angle);
@@ -419,10 +428,10 @@ const createSolidThreadSpiral = (radius, isInward, color) => {
             z2 = (radius - currentDepth) * sin;
         }
 
-        const yBaseTop = yCenter + halfBase;
-        const yPeakTop = yCenter + halfTop;
-        const yPeakBot = yCenter - halfTop;
-        const yBaseBot = yCenter - halfBase;
+        const yBaseTop = yCenter + currentHalfBase;
+        const yPeakTop = yCenter + currentHalfTop;
+        const yPeakBot = yCenter - currentHalfTop;
+        const yBaseBot = yCenter - currentHalfBase;
 
         tVertices.push(x1, yBaseTop, z1); // 0
         tVertices.push(x2, yPeakTop, z2); // 1
@@ -445,9 +454,22 @@ const createSolidThreadSpiral = (radius, isInward, color) => {
         // Bottom Face
         tIndices.push(base + 2, next + 2, next + 3);
         tIndices.push(base + 2, next + 3, base + 3);
+
+        // Inner/Base Face (closes the cylinder wall side)
+        tIndices.push(base + 3, next + 3, next + 0);
+        tIndices.push(base + 3, next + 0, base + 0);
     }
 
-    // UV Generation (Simple Planar/Cylindrical approximation)
+    // Caps at the start and end of the segment
+    // Start cap
+    tIndices.push(0, 2, 1);
+    tIndices.push(0, 3, 2);
+    // End cap
+    const last = totalSegments * 4;
+    tIndices.push(last + 0, last + 1, last + 2);
+    tIndices.push(last + 0, last + 2, last + 3);
+
+    // UVs
     const tUVs = [];
     for (let i = 0; i < tVertices.length / 3; i++) {
         const x = tVertices[i * 3];
@@ -455,7 +477,10 @@ const createSolidThreadSpiral = (radius, isInward, color) => {
         const z = tVertices[i * 3 + 2];
 
         const u = (Math.atan2(x, z) / (Math.PI * 2)) + 0.5;
-        const v = (y - startY) / (endY - startY);
+        
+        const minVal = startY - extraPct * yRange;
+        const maxVal = endY;
+        const v = (y - minVal) / (maxVal - minVal);
         tUVs.push(u, v);
     }
 
@@ -503,13 +528,24 @@ function generateGeometry() {
     const topRadius = params.topDiameter / 2;
     const baseRadius = params.baseDiameter / 2;
 
+    const wallThickness = 10;
+    let solidInnerTopRadius = topRadius - wallThickness;
+    solidInnerTopRadius = Math.max(0.1, Math.min(topRadius - 5, solidInnerTopRadius));
+
     // --- Thread Parameters (Shared between Cover and Base) ---
     // Moved up to be available for Cover Lathe
-    const tRadius = params.threadDiameter / 2;
+    const tRadius = solidInnerTopRadius; // Cover plug radius follows base's inner top radius!
     const tHeight = params.threadLength;
     const tTurns = 2; // Fixed as requested
     const tWallThickness = 20;
     const tInnerRadius = Math.max(0.1, tRadius - tWallThickness);
+
+    // Parámetros de la rosca de un cuarto de vuelta (4 inicios / bayoneta)
+    // Diseñados con flancos a ~43º (menores a 45º respecto a la vertical) para impresión 3D sin soportes.
+    const threadTurns = 0.25;
+    const threadBaseWidth = 8;
+    const threadTopWidth = 0.5;
+    const threadDepth = 3.5;
 
     // Thread Profile Dimensions
     const segmentsPerTurn = 120; // High res for smoothness
@@ -588,7 +624,13 @@ function generateGeometry() {
         hollowCyl.name = 'CoverPart';
         modelGroup.add(hollowCyl);
 
-        // (Thread removed for a clean plug-in fit)
+        // Añadir rosca de 4 inicios y 1/4 de vuelta (Bayoneta macho)
+        const maleAngles = [0, Math.PI / 2, Math.PI, 3 * Math.PI / 2];
+        maleAngles.forEach((angle) => {
+            const maleThread = createSolidThreadSpiral(tRadius, threadTurns, tHeight, threadBaseWidth, threadTopWidth, threadDepth, angle, 0, false, params.colorTop);
+            maleThread.name = 'CoverPart';
+            modelGroup.add(maleThread);
+        });
 
         // Bottom Cap (To close the bottom ring of the thread tube)
         const botRingGeo = new THREE.RingGeometry(tInnerRadius, tRadius, 64);
@@ -616,17 +658,7 @@ function generateGeometry() {
     if (params.showBody) {
 
         // 2a. Create the Main Body with mathematically perfect inner wall slope
-        const wallThickness = 10;
-        
-        // Calculate the ideal inner top radius so the inner wall EXACTLY meets the thread hole's bottom
         const innerBaseRadius = baseRadius - wallThickness;
-        const totalHeight = params.elevation - params.baseElevation;
-        const threadBottomHeight = totalHeight - tHeight;
-        
-        // We want the inner wall radius at threadBottomHeight to be exactly equal to tRadius (the thread).
-        // Using inverted linear interpolation: R_top = R_base + (R_target - R_base) * (totalHeight / targetHeight)
-        let solidInnerTopRadius = innerBaseRadius + (tRadius - innerBaseRadius) * (totalHeight / threadBottomHeight);
-        solidInnerTopRadius = Math.max(0.1, Math.min(topRadius - 5, solidInnerTopRadius));
 
         const outerTop = getCurvePoints(topRadius, params.elevation, false, effectiveDip);
         const innerTop = getCurvePoints(solidInnerTopRadius, params.elevation, false, effectiveDip);
@@ -653,14 +685,26 @@ function generateGeometry() {
         cutterCylBrush.position.y = params.elevation - (tHeight / 2) + (overshoot / 2);
         cutterCylBrush.updateMatrixWorld();
 
-        // B. Thread groove removed for a smooth flush socket hole
+        // B. Cutter Threads (Grooves with 0.25mm tolerance)
+        const cutterBaseWidth = threadBaseWidth + 2 * tolerance;
+        const cutterTopWidth = threadTopWidth + 2 * tolerance;
+        const cutterDepth = threadDepth + tolerance + 0.1; // Add minor overlap to prevent zero-thickness faces
+        const overlapRadius = tRadius - 0.1; // Base of cutter thread overlaps the cylinder hole
 
-        // Cutter is just the smooth hole shape
-        let cutter = cutterCylBrush;
+        const extraCutterPct = 0.5; // Extends the cutter 50% (15mm) upwards to cleanly cut through the top edge and start in the air
+        let tempBody = csgEvaluator.evaluate(bodyBrush, cutterCylBrush, SUBTRACTION);
 
-        // 2c. Perform Subtraction
-        // Base - Screw = Threaded Hole
-        let finalBody = csgEvaluator.evaluate(bodyBrush, cutter, SUBTRACTION);
+        // Subtract each of the 4 cutter threads (bayoneta hembra)
+        const cutterAngles = [0, Math.PI / 2, Math.PI, 3 * Math.PI / 2];
+        cutterAngles.forEach((angle) => {
+            const cutterThreadMesh = createSolidThreadSpiral(overlapRadius, threadTurns, tHeight, cutterBaseWidth, cutterTopWidth, cutterDepth, angle, extraCutterPct, false, 0xff0000);
+            const cutterThreadBrush = new Brush(cutterThreadMesh.geometry, cutterThreadMesh.material);
+            cutterThreadBrush.position.y = params.elevation;
+            cutterThreadBrush.updateMatrixWorld();
+            tempBody = csgEvaluator.evaluate(tempBody, cutterThreadBrush, SUBTRACTION);
+        });
+
+        let finalBody = tempBody;
 
         // Ensure materials are preserved
         finalBody.material = new THREE.MeshStandardMaterial({
