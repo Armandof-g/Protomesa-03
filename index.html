@@ -33,6 +33,106 @@
                 display: none !important;
             }
         }
+
+        /* Modal de error de AR */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .modal-content {
+            background: rgba(30, 30, 30, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 12px;
+            padding: 24px;
+            max-width: 90%;
+            width: 420px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+            color: #f0f0f0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            box-sizing: border-box;
+            transform: scale(0.9);
+            transition: transform 0.3s ease;
+        }
+
+        .modal-overlay.active .modal-content {
+            transform: scale(1);
+        }
+
+        .modal-header {
+            font-size: 18px;
+            font-weight: bold;
+            color: #ff5555;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .modal-body {
+            font-size: 14px;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+
+        .modal-body ol {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+
+        .modal-body li {
+            margin-bottom: 8px;
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+        }
+
+        .modal-btn {
+            background: #444;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+
+        .modal-btn:hover {
+            background: #555;
+        }
+        
+        .error-details {
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px dashed rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            padding: 8px;
+            font-family: monospace;
+            font-size: 11px;
+            margin-top: 10px;
+            word-break: break-all;
+            color: #aaa;
+        }
     </style>
     <!-- Import Map for Three.js (Local) -->
     <script type="importmap">
@@ -60,6 +160,31 @@
         <span style="font-size: 12px; font-weight: bold;">Escanear para probar AR</span>
         <img id="qr-code" src="" width="100" height="100" alt="Código QR para AR" style="background: white; padding: 5px; border-radius: 4px;" />
     </div>
+
+    <!-- Modal de error de WebXR -->
+    <div id="ar-error-modal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                ⚠️ Error de Realidad Aumentada
+            </div>
+            <div class="modal-body">
+                No se pudo iniciar la sesión de AR. Por favor, asegúrate de cumplir con lo siguiente:
+                <ol>
+                    <li><strong>Usa Google Chrome nativo:</strong> Si abriste este enlace desde WhatsApp, un escáner de QR o Facebook, por favor copia el enlace y ábrelo directamente en Chrome.</li>
+                    <li><strong>ARCore instalado:</strong> Tu dispositivo debe tener instalada y actualizada la app <em>Servicios de Google Play para RA (ARCore)</em>.</li>
+                    <li><strong>Permiso de cámara:</strong> Asegúrate de otorgar permiso de cámara a este sitio web si se te solicita.</li>
+                    <li><strong>Modo normal:</strong> WebXR no funciona en pestañas de incógnito.</li>
+                </ol>
+                <div class="error-details">
+                    Detalle técnico: <span id="ar-error-message"></span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="modal-btn" onclick="document.getElementById('ar-error-modal').classList.remove('active')">Entendido</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         window.onerror = function (message, source, lineno, colno, error) {
             const info = document.getElementById('info');
@@ -71,6 +196,10 @@
             info.innerHTML += `<br><span style="color:red; background: black;">Promise Error: ${event.reason}</span>`;
             console.error(event.reason);
         });
+        window.showARErrorModal = function (errorMessage) {
+            document.getElementById('ar-error-message').textContent = errorMessage || 'Desconocido';
+            document.getElementById('ar-error-modal').classList.add('active');
+        };
     </script>
     <script type="module" src="./script.js"></script>
 </body>
