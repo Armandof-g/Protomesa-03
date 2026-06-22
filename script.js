@@ -4,7 +4,7 @@ import { GUI } from 'three/addons/libs/lil-gui.module.min.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { SUBTRACTION, ADDITION, Brush, Evaluator } from 'three-bvh-csg';
 import { STLExporter } from 'three/addons/exporters/STLExporter.js';
-import { ARButton } from 'three/addons/webxr/ARButton.js?v=5';
+import { ARButton } from 'three/addons/webxr/ARButton.js?v=6';
 
 // --- Scene Setup ---
 const scene = new THREE.Scene();
@@ -13,12 +13,7 @@ scene.background = new THREE.Color(0x333333);
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 2000);
 camera.position.set(400, 300, 600);
 
-// Crear canvas y contexto explícitamente para evitar NotSupportedError en webgl
-const canvas = document.createElement('canvas');
-const context = canvas.getContext('webgl2', { alpha: true, antialias: false, xrCompatible: true }) || 
-                canvas.getContext('webgl', { alpha: true, antialias: false, xrCompatible: true });
-
-const renderer = new THREE.WebGLRenderer({ canvas: canvas, context: context, antialias: false, alpha: true });
+const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.xr.enabled = true; // Enabled WebXR for AR
