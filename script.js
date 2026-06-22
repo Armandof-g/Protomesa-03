@@ -4,7 +4,7 @@ import { GUI } from 'three/addons/libs/lil-gui.module.min.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { SUBTRACTION, ADDITION, Brush, Evaluator } from 'three-bvh-csg';
 import { STLExporter } from 'three/addons/exporters/STLExporter.js';
-import { ARButton } from 'three/addons/webxr/ARButton.js?v=3';
+import { ARButton } from 'three/addons/webxr/ARButton.js?v=4';
 
 // --- Scene Setup ---
 const scene = new THREE.Scene();
