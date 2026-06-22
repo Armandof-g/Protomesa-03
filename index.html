@@ -153,6 +153,9 @@
         <strong style="font-size: 1.2em;">Protomesa 03</strong><br>
         by: wekaná studio.<br>
         <span style="font-size: 0.85em;">Jesús García<br>MX 2026</span>
+        <div id="diagnostics" style="font-size: 0.75em; border-top: 1px solid rgba(255,255,255,0.2); margin-top: 8px; padding-top: 8px; color: #bbb; text-align: left; max-width: 250px; line-height: 1.3; pointer-events: auto;">
+            Cargando diagnóstico de AR...
+        </div>
     </div>
 
     <!-- Contenedor del código QR -->
@@ -200,8 +203,41 @@
             document.getElementById('ar-error-message').textContent = errorMessage || 'Desconocido';
             document.getElementById('ar-error-modal').classList.add('active');
         };
+
+        // Autodiagnóstico de WebXR al cargar
+        (async () => {
+            const diag = document.getElementById('diagnostics');
+            if (!diag) return;
+            try {
+                let info = '';
+                info += `• HTTPS (Secure): ${window.isSecureContext ? 'Sí' : 'No'}<br>`;
+                info += `• WebXR Device API: ${('xr' in navigator) ? 'Disponible' : 'No disponible'}<br>`;
+                if ('xr' in navigator) {
+                    const arSupported = await navigator.xr.isSessionSupported('immersive-ar');
+                    info += `• AR Soportado (immersive-ar): ${arSupported ? 'Sí' : 'No'}<br>`;
+                }
+                
+                // Detectar navegador o WebView
+                const ua = navigator.userAgent;
+                let browser = 'Desconocido';
+                if (/FBAN|FBAV/i.test(ua)) browser = 'Facebook App';
+                else if (/Instagram/i.test(ua)) browser = 'Instagram App';
+                else if (/WhatsApp/i.test(ua)) browser = 'WhatsApp App';
+                else if (/wv|WebView|GSA/i.test(ua)) browser = 'WebView / Google App';
+                else if (/Chrome/i.test(ua) && /Android/i.test(ua)) browser = 'Google Chrome (Android)';
+                else if (/Safari/i.test(ua) && !/Chrome/i.test(ua)) browser = 'Safari (iOS)';
+                else if (/Chrome/i.test(ua)) browser = 'Google Chrome';
+                
+                info += `• App Detectada: <strong>${browser}</strong><br>`;
+                info += `<span style="font-size: 9px; color: #888; display: block; overflow-wrap: break-word; margin-top: 5px; background: rgba(0,0,0,0.2); padding: 4px; border-radius: 3px;">UA: ${ua}</span>`;
+                
+                diag.innerHTML = info;
+            } catch (err) {
+                diag.innerHTML = `Error en diagnóstico: ${err.message}`;
+            }
+        })();
     </script>
-    <script type="module" src="./script.js"></script>
+    <script type="module" src="./script.js?v=5"></script>
 </body>
 
 </html>
